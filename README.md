@@ -167,6 +167,7 @@ DEX Screener 的 `txns.buys/sells` 是交易笔数，不是独立钱包。本项
 - `GET /api/v1/tokens/:address/history`：7 日扫描历史。
 - `GET /api/v1/alerts/recent`：最近告警审计，不返回 Bot 密钥。
 - `POST /api/v1/scan`：手动扫描，需要 Bearer 管理令牌。
+- `POST /api/v1/telegram/test`：发送专用 Telegram 测试消息，需要 Bearer 管理令牌。
 
 ## GitHub Pages
 

@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RadarToken } from "../src/shared/types";
-import { detectAlertEvents, notificationHelpers } from "../worker/notifications";
+import { detectAlertEvents, notificationHelpers, sendTelegramTest } from "../worker/notifications";
+
+afterEach(() => vi.unstubAllGlobals());
 
 function token(): RadarToken {
   return {
@@ -41,5 +43,28 @@ describe("quiet hours", () => {
     const env = { QUIET_HOURS: "23:00-08:00", ALERT_TIMEZONE_OFFSET: "8" } as never;
     expect(notificationHelpers.inQuietHours(env, new Date("2026-09-05T16:30:00Z"))).toBe(true);
     expect(notificationHelpers.inQuietHours(env, new Date("2026-09-06T04:00:00Z"))).toBe(false);
+  });
+});
+
+describe("Telegram test notification", () => {
+  it("sends an explicit test message even while alerts are in shadow mode", async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => new Response(JSON.stringify({
+      ok: true,
+      result: { message_id: 42 },
+    }), { status: 200, headers: { "content-type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendTelegramTest({
+      TELEGRAM_BOT_TOKEN: "test-token",
+      TELEGRAM_CHAT_ID: "123456",
+      ALERT_MODE: "shadow",
+    } as never, new Date("2026-09-06T16:00:00Z"));
+
+    expect(result).toMatchObject({ ok: true, messageId: 42 });
+    const request = fetchMock.mock.calls[0][1] as RequestInit;
+    const payload = JSON.parse(String(request.body));
+    expect(payload.chat_id).toBe("123456");
+    expect(payload.text).toContain("通知测试成功");
+    expect(payload.text).toContain("不代表真实 Alpha 信号");
   });
 });

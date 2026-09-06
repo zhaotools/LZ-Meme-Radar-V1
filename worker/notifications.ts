@@ -144,4 +144,43 @@ export async function processAlerts(env: Env, token: RadarToken, previous: Radar
   return recorded;
 }
 
+export async function sendTelegramTest(env: Env, now = new Date()) {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) {
+    return { ok: false, error: "Telegram secrets missing" };
+  }
+  const timestamp = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(now);
+  const response = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      chat_id: env.TELEGRAM_CHAT_ID,
+      text: "✅ <b>LZ-Meme Radar V1 通知测试成功</b>\n" +
+        `时间：${timestamp}（北京时间）\n` +
+        "Cloudflare Worker → Telegram → 设备接收链路已连通。\n" +
+        "这是一条专用测试消息，不代表真实 Alpha 信号。",
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const body = await response.json().catch(() => null) as {
+    ok?: boolean;
+    description?: string;
+    result?: { message_id?: number };
+  } | null;
+  if (!response.ok || body?.ok !== true) {
+    return { ok: false, error: body?.description ?? `Telegram ${response.status}` };
+  }
+  return { ok: true, messageId: body.result?.message_id ?? null, sentAt: now.toISOString() };
+}
+
 export const notificationHelpers = { inQuietHours };

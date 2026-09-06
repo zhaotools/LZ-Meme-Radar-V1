@@ -1,5 +1,6 @@
 import type { Env } from "./env";
 import { scanMarket } from "./scanner";
+import { sendTelegramTest } from "./notifications";
 import { getLatestToken, listRadar, tokenHistory } from "./storage";
 
 function cors(env: Env, request: Request) {
@@ -70,6 +71,11 @@ async function handle(request: Request, env: Env) {
     const result = await scanMarket(env);
     return json(env, request, result, result.status === "error" ? 502 : 200);
   }
+  if (request.method === "POST" && path === "/api/v1/telegram/test") {
+    if (!authorized(request, env)) return json(env, request, { error: "unauthorized" }, 401);
+    const result = await sendTelegramTest(env);
+    return json(env, request, result, result.ok ? 200 : 502);
+  }
   const historyMatch = path.match(/^\/api\/v1\/tokens\/(0x[a-fA-F0-9]{40})\/history$/);
   if (request.method === "GET" && historyMatch) {
     return json(env, request, { address: historyMatch[1].toLowerCase(), history: await tokenHistory(env, historyMatch[1]) });
@@ -78,10 +84,6 @@ async function handle(request: Request, env: Env) {
   if (request.method === "GET" && tokenMatch) {
     const token = await getLatestToken(env, tokenMatch[1]);
     return token ? json(env, request, token) : json(env, request, { error: "token not found" }, 404);
-  }
-  if (request.method === "POST" && path === "/api/v1/scan") {
-    if (!authorized(request, env)) return json(env, request, { error: "unauthorized" }, 401);
-    return json(env, request, await scanMarket(env), 202);
   }
   return json(env, request, { error: "not found" }, 404);
 }
