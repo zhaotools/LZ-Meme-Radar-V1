@@ -35,6 +35,48 @@ function age(minutes: number) {
 }
 function shortAddress(address: string) { return `${address.slice(0, 6)}…${address.slice(-4)}`; }
 
+async function copyToClipboard(value: string) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch {
+      // Fall back for browsers that deny the async Clipboard API.
+    }
+  }
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  if (!copied) throw new Error("copy failed");
+}
+
+function CopyAddressButton({ address }: { address: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    try {
+      await copyToClipboard(address);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return <button type="button" className={`copy-contract ${copied ? "copied" : ""}`}
+    aria-label={copied ? "合约地址已复制" : "复制完整合约地址"} title={copied ? "已复制" : "复制合约地址"}
+    data-label={copied ? "已复制" : "复制合约"} onClick={copy} onKeyDown={(event) => event.stopPropagation()}>
+    {copied
+      ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.2 4.2L19 7" /></svg>
+      : <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>}
+  </button>;
+}
+
 function StatusBadge({ token }: { token: RadarToken }) {
   return <span className={`badge level-${token.score.level.toLowerCase()}`}>{LEVEL_LABEL[token.score.level]}</span>;
 }
@@ -81,7 +123,8 @@ function TokenTable({ tokens, onSelect, watched, toggleWatch }: {
         <td><button className={`star ${watched.has(token.address) ? "active" : ""}`} aria-label="切换自选"
           onClick={(event) => { event.stopPropagation(); toggleWatch(token.address); }}>{watched.has(token.address) ? "★" : "☆"}</button></td>
         <td><div className="token-cell"><TokenMark token={token} /><div><strong>{token.symbol}</strong><span>{token.name}</span>
-          <small>{token.lane === "launchpad" ? "Launchpad" : "DEX"} · {age(token.ageMinutes)} · {token.source}</small></div></div></td>
+          <small>{token.lane === "launchpad" ? "Launchpad" : "DEX"} · {age(token.ageMinutes)} · {token.source}</small>
+          <div className="contract-line"><code>{shortAddress(token.address)}</code><CopyAddressButton address={token.address} /></div></div></div></td>
         <td><StatusBadge token={token} />{token.score.alphaInflection && <span className="inflection">拐点</span>}</td>
         <td><b className="score-number">{token.score.total}</b><small className="coverage">覆盖 {token.score.coverage}%</small></td>
         <td><span className={`security security-${token.score.securityStatus.toLowerCase()}`}>{token.score.securityStatus}</span></td>
@@ -100,7 +143,8 @@ function MobileList({ tokens, onSelect, watched, toggleWatch }: {
   tokens: RadarToken[]; onSelect: (token: RadarToken) => void; watched: Set<string>; toggleWatch: (address: string) => void;
 }) {
   return <div className="mobile-list">{tokens.map((token) => <article className="mobile-row" key={token.address} onClick={() => onSelect(token)}>
-    <div className="mobile-primary"><TokenMark token={token} /><div><strong>{token.symbol}</strong><span>{token.name} · {age(token.ageMinutes)}</span></div>
+    <div className="mobile-primary"><TokenMark token={token} /><div><strong>{token.symbol}</strong><span>{token.name} · {age(token.ageMinutes)}</span>
+      <div className="contract-line"><code>{shortAddress(token.address)}</code><CopyAddressButton address={token.address} /></div></div>
       <button className={`star ${watched.has(token.address) ? "active" : ""}`} onClick={(event) => { event.stopPropagation(); toggleWatch(token.address); }}>{watched.has(token.address) ? "★" : "☆"}</button></div>
     <div className="mobile-signal"><div><b>{token.score.total}</b><small>Alpha</small></div><StatusBadge token={token} />
       <span className={`security security-${token.score.securityStatus.toLowerCase()}`}>{token.score.securityStatus}</span></div>
@@ -140,7 +184,7 @@ function DetailDrawer({ token, onClose, watched, toggleWatch }: {
     <button className="drawer-scrim" onClick={onClose} aria-label="关闭详情" />
     <aside className="drawer">
       <header className="drawer-header"><div className="token-cell"><TokenMark token={token} /><div><strong>{token.name}</strong><span>{token.symbol} · BSC</span>
-        <small>{shortAddress(token.address)}</small></div></div>
+        <div className="contract-line"><code>{shortAddress(token.address)}</code><CopyAddressButton address={token.address} /></div></div></div>
         <div className="drawer-actions"><button className={`star ${watched ? "active" : ""}`} onClick={toggleWatch}>{watched ? "★" : "☆"}</button><button onClick={onClose} aria-label="关闭">×</button></div></header>
       <div className="drawer-scroll">
         <section className="signal-overview"><ScoreRing score={token.score.total} /><div><StatusBadge token={token} />
