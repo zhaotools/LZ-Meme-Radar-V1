@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lz-meme-radar-v1-api",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "observability": { "enabled": true },
+  "triggers": { "crons": ["*/2 * * * *"] },
+  "vars": {
+    "ALERT_MODE": "shadow",
+    "ALERT_TIMEZONE_OFFSET": "8",
+    "QUIET_HOURS": "23:00-08:00",
+    "ALLOWED_ORIGIN": "https://wgzhao.github.io,http://localhost:5173",
+    "DISCOVERY_CONTRACTS_JSON": "[]"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lz-meme-radar",
+      "database_id": "REPLACE_AFTER_WRANGLER_D1_CREATE",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

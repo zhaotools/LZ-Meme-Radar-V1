@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-09-06T08:18:00.000Z",
+  "sourceMode": "demo",
+  "scanStatus": "ok",
+  "summary": { "discovered24h": 38, "riskPass": 4, "alphaWatch": 1, "alphaSignal": 1, "alertsSent": 3 },
+  "notices": ["这是界面与规则演示数据，不代表实时市场信号。"],
+  "tokens": [
+    {
+      "chainId": "56", "address": "0x1111111111111111111111111111111111111111", "pairAddress": "0xa111111111111111111111111111111111111111", "name": "牛来", "symbol": "NIULAI", "imageUrl": null,
+      "source": "Four.meme + PancakeSwap V2 + DEX Profile", "lane": "dex", "discoveredAt": "2026-09-06T01:25:00.000Z", "observedAt": "2026-09-06T08:18:00.000Z", "pairCreatedAt": "2026-09-06T01:25:00.000Z", "ageMinutes": 413,
+      "metrics": { "priceUsd": 0.000428, "marketCapUsd": 428000, "liquidityUsd": 92000, "liquidityChangePct": 12.4, "volume5mUsd": 18500, "volume1hUsd": 192000, "volume6hUsd": 611000, "volume24hUsd": 940000, "priorVolume1hUsd": 104000, "buys5m": 73, "sells5m": 34, "txBuys1h": 654, "txSells1h": 341, "buyers1h": 426, "priorBuyers1h": 241, "sellers1h": 268, "holders": 1180, "priorHolders": 892, "freshWallets1h": 176, "priorFreshWallets1h": 81, "netBuy1hUsd": 78000, "whaleNetFlow1hUsd": 31000, "devNetFlow1hUsd": 0, "priceChange5mPct": 8.4, "priceChange15mPct": 17.2, "priceChange1hPct": 31.5, "priceChange6hPct": 76.1, "attention": 98, "priorAttention": 44, "crossSourceCount": 3, "boostAmount": 62, "profileAvailable": true, "consecutiveScans": 7 },
+      "security": { "isHoneypot": false, "cannotBuy": false, "cannotSellAll": false, "maliciousContract": false, "maliciousCreator": false, "ownerChangeBalance": false, "personalSlippageModifiable": false, "slippageModifiable": false, "transferPausable": false, "blacklisted": false, "mintable": false, "hiddenOwner": false, "ownerRenounced": true, "buyTax": 0.03, "sellTax": 0.03, "effectiveTop10Pct": 0.284, "creatorPct": 0.012, "lpLockedPct": 0.98, "openSource": true },
+      "score": { "total": 86, "coverage": 96, "securityStatus": "PASS", "level": "ALPHA_SIGNAL", "components": { "funds": 27, "chips": 22, "heat": 17, "structure": 12, "safety": 8 }, "alphaInflection": true, "eligible": true, "overheated": false, "reasons": ["资金、筹码与注意力同步加速，价格尚未抛物线"], "missing": [] },
+      "dexUrl": null, "fourUrl": null, "fieldSources": { "market": "演示样本 · DEX Screener 字段结构", "transactions": "演示样本 · 买卖交易笔数", "analytics": "演示样本 · 链上聚合指标", "security": "演示样本 · GoPlus 字段结构" }
+    },
+    {
+      "chainId": "56", "address": "0x2222222222222222222222222222222222222222", "pairAddress": "0xa222222222222222222222222222222222222222", "name": "BNB Agent", "symbol": "BNBAI", "imageUrl": null,
+      "source": "PancakeSwap V2 + DEX Boost", "lane": "dex", "discoveredAt": "2026-09-05T20:10:00.000Z", "observedAt": "2026-09-06T08:18:00.000Z", "pairCreatedAt": "2026-09-05T20:10:00.000Z", "ageMinutes": 728,
+      "metrics": { "priceUsd": 0.00118, "marketCapUsd": 1180000, "liquidityUsd": 143000, "liquidityChangePct": 5.1, "volume5mUsd": 8100, "volume1hUsd": 127000, "volume6hUsd": 488000, "volume24hUsd": 1200000, "priorVolume1hUsd": 91000, "buys5m": 42, "sells5m": 27, "txBuys1h": 302, "txSells1h": 224, "buyers1h": 217, "priorBuyers1h": 164, "holders": 1842, "priorHolders": 1681, "freshWallets1h": 79, "priorFreshWallets1h": 55, "netBuy1hUsd": 41000, "whaleNetFlow1hUsd": 12000, "devNetFlow1hUsd": 0, "priceChange5mPct": 3.2, "priceChange15mPct": 7.9, "priceChange1hPct": 18.6, "priceChange6hPct": 44.2, "attention": 73, "priorAttention": 51, "crossSourceCount": 2, "boostAmount": 40, "profileAvailable": false, "consecutiveScans": 5 },
+      "security": { "isHoneypot": false, "cannotBuy": false, "cannotSellAll": false, "maliciousContract": false, "maliciousCreator": false, "ownerChangeBalance": false, "personalSlippageModifiable": false, "slippageModifiable": false, "transferPausable": false, "blacklisted": false, "mintable": false, "ownerRenounced": true, "buyTax": 0, "sellTax": 0, "effectiveTop10Pct": 0.351, "creatorPct": 0.018, "lpLockedPct": 0.86, "openSource": true },
+      "score": { "total": 75, "coverage": 92, "securityStatus": "PASS", "level": "ALPHA_WATCH", "components": { "funds": 23, "chips": 18, "heat": 14, "structure": 12, "safety": 8 }, "alphaInflection": false, "eligible": true, "overheated": false, "reasons": [], "missing": ["资料完整度"] },
+      "dexUrl": null, "fourUrl": null, "fieldSources": { "market": "演示样本", "analytics": "演示样本", "security": "演示样本" }
+    },
+    {
+      "chainId": "56", "address": "0x3333333333333333333333333333333333333333", "pairAddress": "0xa333333333333333333333333333333333333333", "name": "竹子熊猫", "symbol": "BAMBOO", "imageUrl": null,
+      "source": "DEX Profile", "lane": "dex", "discoveredAt": "2026-09-06T06:03:00.000Z", "observedAt": "2026-09-06T08:18:00.000Z", "pairCreatedAt": "2026-09-06T06:03:00.000Z", "ageMinutes": 135,
+      "metrics": { "priceUsd": 0.000074, "marketCapUsd": 74000, "liquidityUsd": 26000, "liquidityChangePct": 2.1, "volume5mUsd": 4200, "volume1hUsd": 41000, "volume6hUsd": 89000, "volume24hUsd": 102000, "priorVolume1hUsd": 33000, "buys5m": 31, "sells5m": 22, "txBuys1h": 147, "txSells1h": 118, "holders": 312, "priorHolders": 276, "priceChange5mPct": 2.1, "priceChange15mPct": 5.8, "priceChange1hPct": 13.2, "attention": 30, "priorAttention": 20, "crossSourceCount": 1, "boostAmount": 0, "profileAvailable": true, "consecutiveScans": 3 },
+      "security": { "isHoneypot": false, "cannotBuy": false, "cannotSellAll": false, "ownerChangeBalance": false, "slippageModifiable": null, "transferPausable": null, "blacklisted": null, "mintable": null, "buyTax": 0.02, "sellTax": 0.02, "effectiveTop10Pct": 0.418, "creatorPct": null, "lpLockedPct": null, "openSource": true },
+      "score": { "total": 61, "coverage": 68, "securityStatus": "UNKNOWN", "level": "OBSERVE", "components": { "funds": 19, "chips": 15, "heat": 10, "structure": 11, "safety": 6 }, "alphaInflection": false, "eligible": true, "overheated": false, "reasons": ["安全字段覆盖不足"], "missing": ["新钱包持续进入", "Dev 行为", "大户净流", "LP 锁定"] },
+      "dexUrl": null, "fourUrl": null, "fieldSources": { "market": "演示样本", "security": "演示样本 · 部分字段缺失" }
+    },
+    {
+      "chainId": "56", "address": "0x4444444444444444444444444444444444444444", "pairAddress": "0xa444444444444444444444444444444444444444", "name": "赵云冲锋", "symbol": "ZHAO", "imageUrl": null,
+      "source": "Four.meme + DEX Top Boost", "lane": "dex", "discoveredAt": "2026-09-06T07:24:00.000Z", "observedAt": "2026-09-06T08:18:00.000Z", "pairCreatedAt": "2026-09-06T07:24:00.000Z", "ageMinutes": 54,
+      "metrics": { "priceUsd": 0.00031, "marketCapUsd": 310000, "liquidityUsd": 61000, "volume5mUsd": 72000, "volume1hUsd": 294000, "priorVolume1hUsd": 64000, "buys5m": 224, "sells5m": 87, "txBuys1h": 881, "txSells1h": 402, "buyers1h": 621, "priorBuyers1h": 142, "holders": 943, "priorHolders": 466, "freshWallets1h": 412, "priorFreshWallets1h": 91, "netBuy1hUsd": 131000, "whaleNetFlow1hUsd": 68000, "devNetFlow1hUsd": 0, "priceChange5mPct": 91, "priceChange15mPct": 206, "priceChange1hPct": 428, "attention": 112, "priorAttention": 27, "crossSourceCount": 2, "boostAmount": 100, "profileAvailable": true, "consecutiveScans": 4 },
+      "security": { "isHoneypot": false, "cannotBuy": false, "cannotSellAll": false, "maliciousContract": false, "maliciousCreator": false, "ownerChangeBalance": false, "personalSlippageModifiable": false, "slippageModifiable": false, "transferPausable": false, "blacklisted": false, "mintable": false, "ownerRenounced": true, "buyTax": 0.03, "sellTax": 0.03, "effectiveTop10Pct": 0.31, "creatorPct": 0.01, "lpLockedPct": 1, "openSource": true },
+      "score": { "total": 84, "coverage": 96, "securityStatus": "PASS", "level": "OVERHEATED", "components": { "funds": 29, "chips": 22, "heat": 20, "structure": 5, "safety": 8 }, "alphaInflection": false, "eligible": true, "overheated": true, "reasons": ["短周期涨幅过热，等待结构修复"], "missing": [] },
+      "dexUrl": null, "fourUrl": null, "fieldSources": { "market": "演示样本", "analytics": "演示样本", "security": "演示样本" }
+    },
+    {
+      "chainId": "56", "address": "0x5555555555555555555555555555555555555555", "pairAddress": "0xa555555555555555555555555555555555555555", "name": "Moon Trap", "symbol": "RUGX", "imageUrl": null,
+      "source": "PancakeSwap V2 + DEX Boost", "lane": "dex", "discoveredAt": "2026-09-06T07:46:00.000Z", "observedAt": "2026-09-06T08:18:00.000Z", "pairCreatedAt": "2026-09-06T07:46:00.000Z", "ageMinutes": 32,
+      "metrics": { "priceUsd": 0.00019, "marketCapUsd": 190000, "liquidityUsd": 47000, "volume5mUsd": 34000, "volume1hUsd": 171000, "priorVolume1hUsd": 51000, "buys5m": 116, "sells5m": 9, "txBuys1h": 468, "txSells1h": 37, "holders": 604, "priorHolders": 251, "priceChange5mPct": 36, "priceChange15mPct": 104, "priceChange1hPct": 241, "attention": 94, "priorAttention": 21, "crossSourceCount": 2, "boostAmount": 84, "profileAvailable": true, "consecutiveScans": 3 },
+      "security": { "isHoneypot": true, "cannotBuy": false, "cannotSellAll": true, "maliciousContract": false, "maliciousCreator": true, "ownerChangeBalance": true, "personalSlippageModifiable": true, "slippageModifiable": true, "transferPausable": true, "blacklisted": true, "mintable": true, "ownerRenounced": false, "buyTax": 0.01, "sellTax": 0.99, "effectiveTop10Pct": 0.91, "creatorPct": 0.44, "lpLockedPct": 0, "openSource": false },
+      "score": { "total": 79, "coverage": 87, "securityStatus": "FAIL", "level": "RISK_FAIL", "components": { "funds": 28, "chips": 12, "heat": 19, "structure": 13, "safety": 7 }, "alphaInflection": false, "eligible": true, "overheated": true, "reasons": ["疑似 Honeypot", "无法全部卖出", "恶意创建者", "Owner 可改余额", "交易税超过 25%"], "missing": ["大户净流", "Dev 行为"] },
+      "dexUrl": null, "fourUrl": null, "fieldSources": { "market": "演示样本", "security": "演示样本 · 风险案例" }
+    },
+    {
+      "chainId": "56", "address": "0x6666666666666666666666666666666666666666", "pairAddress": null, "name": "Four Cat", "symbol": "4CAT", "imageUrl": null,
+      "source": "Four.meme TokenCreated", "lane": "launchpad", "discoveredAt": "2026-09-06T07:02:00.000Z", "observedAt": "2026-09-06T08:18:00.000Z", "pairCreatedAt": null, "ageMinutes": 76,
+      "metrics": { "marketCapUsd": 64000, "volume5mUsd": 2900, "volume1hUsd": 21000, "priorVolume1hUsd": 12000, "txBuys1h": 113, "txSells1h": 62, "holders": 226, "priorHolders": 169, "priceChange5mPct": 4.2, "priceChange1hPct": 21.8, "attention": 41, "priorAttention": 20, "crossSourceCount": 1, "boostAmount": 0, "profileAvailable": false, "curveProgressPct": 0.46, "raisedBnb": 8.2, "consecutiveScans": 4 },
+      "security": { "isHoneypot": false, "cannotBuy": false, "cannotSellAll": false, "ownerChangeBalance": false, "personalSlippageModifiable": false, "slippageModifiable": false, "transferPausable": false, "blacklisted": false, "mintable": false, "ownerRenounced": false, "buyTax": 0, "sellTax": 0, "effectiveTop10Pct": 0.33, "creatorPct": 0.021, "lpLockedPct": null, "openSource": true },
+      "score": { "total": 58, "coverage": 74, "securityStatus": "PASS", "level": "OBSERVE", "components": { "funds": 18, "chips": 16, "heat": 11, "structure": 7, "safety": 6 }, "alphaInflection": false, "eligible": true, "overheated": false, "reasons": [], "missing": ["1h 净买入", "独立买家加速", "新钱包持续进入", "大户净流", "流动性深度"] },
+      "dexUrl": null, "fourUrl": "https://four.meme/en", "fieldSources": { "launchpad": "演示样本 · Four.meme 预毕业通道", "security": "演示样本" }
+    }
+  ]
+}
