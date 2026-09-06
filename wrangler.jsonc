@@ -9,14 +9,14 @@
     "ALERT_MODE": "shadow",
     "ALERT_TIMEZONE_OFFSET": "8",
     "QUIET_HOURS": "23:00-08:00",
-    "ALLOWED_ORIGIN": "https://wgzhao.github.io,http://localhost:5173",
+    "ALLOWED_ORIGIN": "https://zhaotools.github.io,http://localhost:5173",
     "DISCOVERY_CONTRACTS_JSON": "[]"
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "lz-meme-radar",
-      "database_id": "REPLACE_AFTER_WRANGLER_D1_CREATE",
+      "database_id": "e44ec02c-5212-4392-ae9a-13dcf383683c",
       "migrations_dir": "migrations"
     }
   ]

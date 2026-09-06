@@ -28,6 +28,7 @@ export interface Candidate {
   profileAvailable?: boolean;
   boostAmount?: number;
   crossSourceCount?: number;
+  dexUrl?: string | null;
   fourUrl?: string | null;
   createdAt?: string | null;
   initialMetrics?: Partial<RadarMetrics>;
@@ -51,6 +52,31 @@ interface DexPair {
   pairCreatedAt?: number;
   info?: { imageUrl?: string };
   boosts?: { active?: number };
+}
+
+interface GeckoPoolResponse {
+  data?: Array<{
+    attributes?: {
+      address?: string;
+      pool_created_at?: string;
+      fdv_usd?: string;
+      market_cap_usd?: string | null;
+      reserve_in_usd?: string;
+      base_token_price_usd?: string;
+      price_change_percentage?: Record<string, string>;
+      transactions?: Record<string, { buys?: number; sells?: number; buyers?: number; sellers?: number }>;
+      volume_usd?: Record<string, string>;
+    };
+    relationships?: {
+      base_token?: { data?: { id?: string } };
+      quote_token?: { data?: { id?: string } };
+      dex?: { data?: { id?: string } };
+    };
+  }>;
+  included?: Array<{
+    id?: string;
+    attributes?: { address?: string; name?: string; symbol?: string; image_url?: string | null };
+  }>;
 }
 
 export interface EnrichedCandidate extends Candidate {
@@ -203,6 +229,145 @@ async function discoverDexAttention(): Promise<Candidate[]> {
     });
   });
   return candidates;
+}
+
+export function dexSearchPairsToCandidates(pairs: DexPair[]): Candidate[] {
+  const quoteAddresses = new Set([...QUOTE_TOKENS, "0x0000000000000000000000000000000000000000"]);
+  return pairs.flatMap((pair) => {
+    if (pair.chainId !== "bsc") return [];
+    const baseAddress = pair.baseToken?.address?.toLowerCase();
+    const quoteAddress = pair.quoteToken?.address?.toLowerCase();
+    const tokenInfo = baseAddress && !quoteAddresses.has(baseAddress)
+      ? pair.baseToken : quoteAddress && !quoteAddresses.has(quoteAddress) ? pair.quoteToken : null;
+    const address = tokenInfo?.address?.toLowerCase();
+    if (!address) return [];
+    const createdAt = pair.pairCreatedAt ? new Date(pair.pairCreatedAt).toISOString() : null;
+    const dexId = pair.dexId ?? "unknown";
+    const isLaunchpad = dexId.includes("four") || dexId.includes("flap");
+    return [{
+      address,
+      pairAddress: pair.pairAddress?.toLowerCase() ?? null,
+      source: `DEX Screener Search (${dexId})`,
+      lane: isLaunchpad ? "launchpad" as const : "dex" as const,
+      name: tokenInfo?.name,
+      symbol: tokenInfo?.symbol,
+      imageUrl: pair.info?.imageUrl ?? null,
+      profileAvailable: Boolean(pair.info?.imageUrl),
+      boostAmount: pair.boosts?.active ?? 0,
+      createdAt,
+      dexUrl: pair.url ?? null,
+      fourUrl: dexId.includes("four") ? `https://four.meme/token/${address}` : null,
+      initialMetrics: {
+        priceUsd: pair.priceUsd == null ? null : Number(pair.priceUsd),
+        marketCapUsd: pair.marketCap ?? pair.fdv ?? null,
+        liquidityUsd: pair.liquidity?.usd ?? null,
+        volume5mUsd: pair.volume?.m5 ?? null,
+        volume1hUsd: pair.volume?.h1 ?? null,
+        volume6hUsd: pair.volume?.h6 ?? null,
+        volume24hUsd: pair.volume?.h24 ?? null,
+        buys5m: pair.txns?.m5?.buys ?? null,
+        sells5m: pair.txns?.m5?.sells ?? null,
+        txBuys1h: pair.txns?.h1?.buys ?? null,
+        txSells1h: pair.txns?.h1?.sells ?? null,
+        priceChange5mPct: pair.priceChange?.m5 ?? null,
+        priceChange1hPct: pair.priceChange?.h1 ?? null,
+        priceChange6hPct: pair.priceChange?.h6 ?? null,
+      },
+      fieldSources: {
+        discovery: "DEX Screener public search",
+        market: "DEX Screener",
+        transactions: "DEX Screener（交易笔数，不等同独立钱包）",
+      },
+    }];
+  });
+}
+
+async function discoverDexSearch(): Promise<Candidate[]> {
+  const queries = ["BSC", "BNB meme", "four.meme", "Flap", "CZ meme", "AI meme"];
+  const responses = await Promise.allSettled(queries.map(async (query) => {
+    const response = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(query)}`, {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!response.ok) throw new Error(`DEX Search ${query} ${response.status}`);
+    const body = await response.json() as { pairs?: DexPair[] };
+    return dexSearchPairsToCandidates(body.pairs ?? []);
+  }));
+  const fulfilled = responses.filter((item): item is PromiseFulfilledResult<Candidate[]> => item.status === "fulfilled");
+  if (!fulfilled.length) throw new Error("DEX Screener Search 全部不可用");
+  return fulfilled.flatMap((item) => item.value);
+}
+
+const geckoAddress = (id?: string | null) => id?.replace(/^bsc_/i, "").toLowerCase() ?? null;
+
+export function geckoNewPoolsToCandidates(body: GeckoPoolResponse): Candidate[] {
+  const included = new Map((body.included ?? []).map((item) => [item.id, item.attributes]));
+  const finite = (value: unknown) => {
+    if (value === "" || value === null || value === undefined) return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  return (body.data ?? []).flatMap((pool) => {
+    const baseId = pool.relationships?.base_token?.data?.id;
+    const quoteId = pool.relationships?.quote_token?.data?.id;
+    const baseAddress = geckoAddress(baseId);
+    const quoteAddress = geckoAddress(quoteId);
+    const geckoQuotes = new Set([...QUOTE_TOKENS, "0x0000000000000000000000000000000000000000"]);
+    const tokenId = baseAddress && !geckoQuotes.has(baseAddress)
+      ? baseId : quoteAddress && !geckoQuotes.has(quoteAddress) ? quoteId : null;
+    const address = geckoAddress(tokenId);
+    const attributes = pool.attributes;
+    if (!address || !tokenId || !attributes) return [];
+    const token = included.get(tokenId);
+    const poolAddress = attributes.address?.toLowerCase() ?? null;
+    const dexId = pool.relationships?.dex?.data?.id ?? "unknown";
+    const isLaunchpad = dexId.includes("four-meme");
+    return [{
+      address,
+      pairAddress: poolAddress,
+      source: `GeckoTerminal New Pools (${dexId})`,
+      lane: isLaunchpad ? "launchpad" as const : "dex" as const,
+      name: token?.name,
+      symbol: token?.symbol,
+      imageUrl: token?.image_url ?? null,
+      createdAt: attributes.pool_created_at ?? null,
+      dexUrl: poolAddress ? `https://www.geckoterminal.com/bsc/pools/${poolAddress}` : null,
+      fourUrl: isLaunchpad ? `https://four.meme/token/${address}` : null,
+      initialMetrics: {
+        priceUsd: finite(attributes.base_token_price_usd),
+        marketCapUsd: finite(attributes.market_cap_usd) ?? finite(attributes.fdv_usd),
+        liquidityUsd: finite(attributes.reserve_in_usd),
+        volume5mUsd: finite(attributes.volume_usd?.m5),
+        volume15mUsd: finite(attributes.volume_usd?.m15),
+        volume1hUsd: finite(attributes.volume_usd?.h1),
+        volume6hUsd: finite(attributes.volume_usd?.h6),
+        volume24hUsd: finite(attributes.volume_usd?.h24),
+        buys5m: finite(attributes.transactions?.m5?.buys),
+        sells5m: finite(attributes.transactions?.m5?.sells),
+        txBuys1h: finite(attributes.transactions?.h1?.buys),
+        txSells1h: finite(attributes.transactions?.h1?.sells),
+        buyers1h: finite(attributes.transactions?.h1?.buyers),
+        sellers1h: finite(attributes.transactions?.h1?.sellers),
+        priceChange5mPct: finite(attributes.price_change_percentage?.m5),
+        priceChange1hPct: finite(attributes.price_change_percentage?.h1),
+        priceChange6hPct: finite(attributes.price_change_percentage?.h6),
+      },
+      fieldSources: {
+        discovery: "GeckoTerminal BSC new pools",
+        market: "GeckoTerminal",
+        transactions: "GeckoTerminal（含独立买家/卖家）",
+      },
+    }];
+  });
+}
+
+async function discoverGeckoNewPools(): Promise<Candidate[]> {
+  const response = await fetch("https://api.geckoterminal.com/api/v2/networks/bsc/new_pools?page=1&include=base_token%2Cquote_token", {
+    headers: { accept: "application/json" },
+    signal: AbortSignal.timeout(8_000),
+  });
+  if (!response.ok) throw new Error(`GeckoTerminal New Pools ${response.status}`);
+  return geckoNewPoolsToCandidates(await response.json() as GeckoPoolResponse);
 }
 
 async function discoverFourApi(): Promise<Candidate[]> {
@@ -363,7 +528,7 @@ function fromPair(candidate: Candidate, pair: DexPair | null, now: Date): Enrich
     name: tokenInfo?.name ?? candidate.name ?? "Unknown",
     symbol: tokenInfo?.symbol ?? candidate.symbol ?? "?",
     imageUrl: pair?.info?.imageUrl ?? candidate.imageUrl ?? null,
-    dexUrl: pair?.url ?? null,
+    dexUrl: pair?.url ?? candidate.dexUrl ?? null,
     metrics,
     lane: pair ? "dex" : candidate.lane,
     fieldSources: {
@@ -403,19 +568,21 @@ async function enrichAnalytics(env: Env, rows: EnrichedCandidate[]) {
 }
 
 export async function discoverAndEnrich(env: Env) {
-  const [attentionResult, fourResult, logs] = await Promise.all([
-    Promise.allSettled([discoverDexAttention()]),
-    Promise.allSettled([discoverFourApi()]),
+  const [sourceResults, logs] = await Promise.all([
+    Promise.allSettled([discoverDexAttention(), discoverDexSearch(), discoverFourApi(), discoverGeckoNewPools()]),
     discoverLogs(env).catch(() => []),
   ]);
-  const attention = attentionResult[0].status === "fulfilled" ? attentionResult[0].value : [];
-  const four = fourResult[0].status === "fulfilled" ? fourResult[0].value : [];
-  if (!attention.length && !four.length && !logs.length) {
-    const messages = [attentionResult[0], fourResult[0]].flatMap((result) =>
+  const [attentionResult, dexSearchResult, fourResult, geckoResult] = sourceResults;
+  const attention = attentionResult.status === "fulfilled" ? attentionResult.value : [];
+  const dexSearch = dexSearchResult.status === "fulfilled" ? dexSearchResult.value : [];
+  const four = fourResult.status === "fulfilled" ? fourResult.value : [];
+  const gecko = geckoResult.status === "fulfilled" ? geckoResult.value : [];
+  if (!attention.length && !dexSearch.length && !four.length && !gecko.length && !logs.length) {
+    const messages = sourceResults.flatMap((result) =>
       result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : String(result.reason)] : []);
     if (messages.length) throw new Error(`候选发现源不可用：${messages.join("；")}`);
   }
-  const candidates = mergeCandidates([...logs, ...attention, ...four]).slice(0, 30);
+  const candidates = mergeCandidates([...logs, ...attention, ...four, ...gecko, ...dexSearch]).slice(0, 30);
   const now = new Date();
   const enriched: EnrichedCandidate[] = [];
   for (let index = 0; index < candidates.length; index += 10) {

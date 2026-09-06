@@ -33,7 +33,7 @@ jobs:
       - run: pnpm test
       - run: pnpm build
         env:
-          VITE_RADAR_API_URL: ${{ vars.VITE_RADAR_API_URL }}
+          VITE_RADAR_API_URL: https://lz-meme-radar-v1-api.lz-meme-radar-v1.workers.dev
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

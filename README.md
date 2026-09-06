@@ -5,7 +5,8 @@
 ## 当前能力
 
 - 双通道发现：Four.meme `NEW / HOT / PROGRESS` 列表、TokenManager2/OpenFour 创建事件与 PancakeSwap V2/V3 新池日志。
-- DEX Screener 最新资料、Boost 和交易/流动性数据补全。
+- DEX Screener 最新资料、Boost、搜索候选和交易/流动性数据补全。
+- GeckoTerminal BSC New Pools 作为 Four.meme 或 DEX 搜索受限时的容灾新池源。
 - GoPlus Token Security 风险检查，结果分为 `PASS / UNKNOWN / FAIL`。
 - 100 分 Alpha Score：资金 30、筹码 25、热度 20、交易结构 15、安全质量 10。
 - 严格准入：高危项一票否决；安全未知永远不能进入 Alpha Signal；Signal 需要至少两轮连续扫描和 80% 数据覆盖。
