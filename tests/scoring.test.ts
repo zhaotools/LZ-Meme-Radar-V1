@@ -98,10 +98,32 @@ describe("alpha scoring", () => {
     expect(scoreToken(input).level).not.toBe("ALPHA_SIGNAL");
   });
 
-  it("marks a parabolic move as overheated", () => {
+  it("keeps a parabolic move visible and adds a risk flag", () => {
     const input = strongInput();
     input.metrics.priceChange15mPct = 210;
-    expect(scoreToken(input).level).toBe("OVERHEATED");
+    const result = scoreToken(input);
+    expect(result.level).toBe("ALPHA_SIGNAL");
+    expect(result.overheated).toBe(true);
+    expect(result.riskFlags).toContain("PARABOLIC");
+  });
+
+  it("routes fast large-cap tokens into Momentum Breakout instead of rejecting them", () => {
+    const input = strongInput();
+    input.ageMinutes = 130;
+    input.metrics.marketCapUsd = 50_000_000;
+    input.metrics.liquidityUsd = 760_000;
+    input.metrics.volume5mUsd = 1_900_000;
+    input.metrics.volume1hUsd = 19_000_000;
+    input.metrics.txBuys1h = 22_853;
+    input.metrics.txSells1h = 20_997;
+    input.metrics.priceChange1hPct = 361;
+    input.security = {};
+    const result = scoreToken(input);
+    expect(result.track).toBe("MOMENTUM_BREAKOUT");
+    expect(result.level).toBe("BREAKOUT_WATCH");
+    expect(result.eligible).toBe(true);
+    expect(result.riskFlags).toContain("PARABOLIC");
+    expect(result.riskFlags).toContain("SECURITY_PENDING");
   });
 
   it("does not let an ineligible micro-pool become a watch signal", () => {

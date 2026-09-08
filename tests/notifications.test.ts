@@ -12,7 +12,8 @@ function token(): RadarToken {
     score: {
       total: 70, coverage: 85, securityStatus: "PASS", level: "ALPHA_WATCH",
       components: { funds: 20, chips: 17, heat: 14, structure: 11, safety: 8 },
-      alphaInflection: false, eligible: true, overheated: false, reasons: [], missing: [],
+      alphaInflection: false, eligible: true, overheated: false, track: "EARLY_ALPHA",
+      breakout: false, riskFlags: [], reasons: [], missing: [],
     },
   };
 }
@@ -35,6 +36,17 @@ describe("alert detection", () => {
     expect(types).toContain("SCORE_JUMP");
     expect(types).toContain("LIQUIDITY_DROP");
     expect(types).toContain("SAFETY_DOWNGRADE");
+  });
+
+  it("emits one highest market-cap breakout event", () => {
+    const previous = token();
+    previous.metrics.marketCapUsd = 4_900_000;
+    const current = token();
+    current.metrics.marketCapUsd = 22_000_000;
+    const types = detectAlertEvents(current, previous).map((event) => event.type);
+    expect(types).toContain("MC_BREAKOUT_20M");
+    expect(types).not.toContain("MC_BREAKOUT_5M");
+    expect(types).not.toContain("MC_BREAKOUT_10M");
   });
 });
 

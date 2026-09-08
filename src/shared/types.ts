@@ -1,6 +1,9 @@
 export type RadarLane = "launchpad" | "dex";
+export type RadarTrack = "LAUNCHPAD" | "EARLY_ALPHA" | "MOMENTUM_BREAKOUT";
 export type SecurityStatus = "PASS" | "UNKNOWN" | "FAIL";
-export type SignalLevel = "NOISE" | "OBSERVE" | "ALPHA_WATCH" | "ALPHA_SIGNAL" | "OVERHEATED" | "RISK_FAIL";
+export type SignalLevel = "NOISE" | "OBSERVE" | "ALPHA_WATCH" | "ALPHA_SIGNAL" |
+  "BREAKOUT_WATCH" | "BREAKOUT_SIGNAL" | "OVERHEATED" | "RISK_FAIL";
+export type SourceHealthStatus = "ok" | "degraded" | "error" | "disabled";
 
 export interface SecurityFacts {
   isHoneypot?: boolean | null;
@@ -35,6 +38,9 @@ export interface RadarMetrics {
   volume6hUsd?: number | null;
   volume24hUsd?: number | null;
   priorVolume1hUsd?: number | null;
+  priorMarketCapUsd?: number | null;
+  priorLiquidityUsd?: number | null;
+  marketCapChangePct?: number | null;
   buys5m?: number | null;
   sells5m?: number | null;
   txBuys1h?: number | null;
@@ -80,6 +86,9 @@ export interface ScoreResult {
   alphaInflection: boolean;
   eligible: boolean;
   overheated: boolean;
+  track: RadarTrack;
+  breakout: boolean;
+  riskFlags: string[];
   reasons: string[];
   missing: string[];
 }
@@ -93,9 +102,13 @@ export interface RadarToken {
   imageUrl?: string | null;
   source: string;
   lane: RadarLane;
+  track?: RadarTrack;
+  tokenCreatedAt?: string | null;
+  firstSeenAt?: string;
   discoveredAt: string;
   observedAt: string;
   pairCreatedAt?: string | null;
+  discoveryLatencySeconds?: number | null;
   ageMinutes: number;
   metrics: RadarMetrics;
   security: SecurityFacts;
@@ -110,6 +123,8 @@ export interface RadarSummary {
   riskPass: number;
   alphaWatch: number;
   alphaSignal: number;
+  breakoutWatch: number;
+  breakoutSignal: number;
   alertsSent: number;
 }
 
@@ -119,7 +134,32 @@ export interface RadarResponse {
   scanStatus: "ok" | "partial" | "error";
   summary: RadarSummary;
   tokens: RadarToken[];
+  sourceHealth?: SourceHealth[];
+  latestScan?: ScanRunSummary | null;
   notices?: string[];
+}
+
+export interface SourceHealth {
+  source: string;
+  status: SourceHealthStatus;
+  lastAttemptAt: string;
+  lastSuccessAt?: string | null;
+  lastError?: string | null;
+  candidateCount: number;
+  latencyMs: number;
+}
+
+export interface ScanRunSummary {
+  id: string;
+  startedAt: string;
+  finishedAt?: string | null;
+  status: "running" | "ok" | "partial" | "error";
+  discoveredCount: number;
+  queuedCount: number;
+  trackedCount: number;
+  scoredCount: number;
+  alertCount: number;
+  error?: string | null;
 }
 
 export interface ScoreInput {

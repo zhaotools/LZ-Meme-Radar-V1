@@ -1,4 +1,4 @@
-import type { RadarLane, RadarMetrics } from "../src/shared/types";
+import type { RadarLane, RadarMetrics, SourceHealth } from "../src/shared/types";
 import type { DiscoveryContract, Env } from "./env";
 import { getState, setState } from "./storage";
 
@@ -16,6 +16,7 @@ const QUOTE_TOKENS = new Set([
   "0x55d398326f99059ff775485246999027b3197955", // USDT
   "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d", // USDC
 ]);
+const PUBLIC_LOG_RPCS = ["https://bsc-rpc.publicnode.com", "https://1rpc.io/bnb", "https://bsc.drpc.org"];
 
 export interface Candidate {
   address: string;
@@ -90,17 +91,23 @@ export interface EnrichedCandidate extends Candidate {
 }
 
 async function rpc<T>(env: Env, method: string, params: unknown[]): Promise<T> {
-  if (!env.BSC_RPC_URL) throw new Error("BSC_RPC_URL 未配置");
-  const response = await fetch(env.BSC_RPC_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
-    signal: AbortSignal.timeout(12_000),
-  });
-  if (!response.ok) throw new Error(`BSC RPC ${response.status}`);
-  const body = await response.json() as { result?: T; error?: { message?: string } };
-  if (body.error || body.result === undefined) throw new Error(body.error?.message ?? `RPC ${method} 无结果`);
-  return body.result;
+  const endpoints = [...new Set([env.BSC_RPC_URL, env.BSC_RPC_FALLBACK_URL, ...PUBLIC_LOG_RPCS].filter(Boolean))] as string[];
+  const errors: string[] = [];
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), signal: AbortSignal.timeout(12_000),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const body = await response.json() as { result?: T; error?: { message?: string } };
+      if (body.error || body.result === undefined) throw new Error(body.error?.message ?? `${method} 无结果`);
+      return body.result;
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : "unknown error");
+    }
+  }
+  throw new Error(`BSC RPC ${method} 失败：${errors.join("；")}`);
 }
 
 const topicAddress = (topic?: string) => topic && topic.length >= 42 ? `0x${topic.slice(-40)}`.toLowerCase() : null;
@@ -145,10 +152,10 @@ async function configuredContracts(env: Env): Promise<DiscoveryContract[]> {
 }
 
 async function discoverLogs(env: Env): Promise<Candidate[]> {
-  if (!env.BSC_RPC_URL) return [];
   const currentHex = await rpc<string>(env, "eth_blockNumber", []);
   const current = Number.parseInt(currentHex, 16);
   const candidates: Candidate[] = [];
+  let successfulRanges = 0;
 
   for (const contract of await configuredContracts(env)) {
     const stateSuffix = `${contract.address.toLowerCase()}:${contract.topic0.slice(0, 12)}`;
@@ -158,7 +165,9 @@ async function discoverLogs(env: Env): Promise<Candidate[]> {
       : Math.max(contract.fromBlock ?? 0, current - 1_500);
     const backfillSaved = Number(await getState(env, `backfill_before:${stateSuffix}`));
     const backfillBefore = Number.isFinite(backfillSaved) && backfillSaved > 0 ? backfillSaved : liveFrom;
-    const oldest = Math.max(contract.fromBlock ?? 0, current - 86_400);
+    // Initial recovery covers roughly the most recent hour; older tracked tokens are seeded from D1.
+    // A bounded backfill keeps live events ahead of historical pool noise on high-throughput BSC.
+    const oldest = Math.max(contract.fromBlock ?? 0, current - 6_000);
     const ranges: Array<[number, number, "live" | "backfill"]> = [[liveFrom, current, "live"]];
     if (backfillBefore > oldest) ranges.push([Math.max(oldest, backfillBefore - 1_500), backfillBefore - 1, "backfill"]);
 
@@ -171,6 +180,7 @@ async function discoverLogs(env: Env): Promise<Candidate[]> {
           toBlock: `0x${to.toString(16)}`,
           topics: [contract.topic0],
         }]);
+        successfulRanges += 1;
         for (const log of logs) {
           if (contract.kind === "pancake-v2" || contract.kind === "pancake-v3") {
             const token0 = topicAddress(log.topics[1]);
@@ -178,7 +188,8 @@ async function discoverLogs(env: Env): Promise<Candidate[]> {
             const pairAddress = dataAddress(log.data, contract.kind === "pancake-v3" ? 1 : 0);
             if (!token0 || !token1 || !pairAddress) continue;
             const token = QUOTE_TOKENS.has(token0) ? token1 : QUOTE_TOKENS.has(token1) ? token0 : null;
-            if (token) candidates.push({ address: token, pairAddress, source: contract.name, lane: "dex" });
+            if (token) candidates.push({ address: token, pairAddress,
+              source: mode === "backfill" ? `${contract.name} Backfill` : contract.name, lane: "dex" });
           } else {
             const token = contract.tokenDataWord == null
               ? topicAddress(log.topics[contract.tokenTopicIndex ?? 3])
@@ -187,7 +198,7 @@ async function discoverLogs(env: Env): Promise<Candidate[]> {
             if (token) candidates.push({
               address: token,
               pairAddress,
-              source: contract.name,
+              source: mode === "backfill" ? `${contract.name} Backfill` : contract.name,
               lane: "launchpad",
               fourUrl: `https://four.meme/token/${token}`,
             });
@@ -200,6 +211,7 @@ async function discoverLogs(env: Env): Promise<Candidate[]> {
       }
     }
   }
+  if (!successfulRanges) throw new Error("所有链上事件范围读取失败");
   return candidates;
 }
 
@@ -228,6 +240,7 @@ async function discoverDexAttention(): Promise<Candidate[]> {
       });
     });
   });
+  if (responses.every((result) => result.status === "rejected")) throw new Error("DEX Attention 全部不可用");
   return candidates;
 }
 
@@ -458,7 +471,7 @@ function mergeCandidates(rows: Candidate[]) {
     current.fieldSources = { ...current.fieldSources, ...row.fieldSources };
     current.profileAvailable ||= row.profileAvailable;
     current.boostAmount = Math.max(current.boostAmount ?? 0, row.boostAmount ?? 0);
-    if (row.lane === "launchpad") current.lane = "launchpad";
+    if (row.lane === "dex" || row.pairAddress) current.lane = "dex";
   });
   return [...merged.values()].map(({ sources, ...row }) => ({
     ...row,
@@ -467,8 +480,8 @@ function mergeCandidates(rows: Candidate[]) {
   }));
 }
 
-async function fetchPairs(address: string): Promise<DexPair[]> {
-  const response = await fetch(`https://api.dexscreener.com/token-pairs/v1/bsc/${address}`, {
+async function fetchPairsBatch(addresses: string[]): Promise<DexPair[]> {
+  const response = await fetch(`https://api.dexscreener.com/tokens/v1/bsc/${addresses.join(",")}`, {
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(8_000),
   });
@@ -477,21 +490,20 @@ async function fetchPairs(address: string): Promise<DexPair[]> {
   return Array.isArray(body) ? body as DexPair[] : [];
 }
 
-function selectPair(pairs: DexPair[], address: string, preferredPair?: string | null) {
-  const bsc = pairs.filter((pair) => pair.chainId === "bsc");
-  const preferred = preferredPair && bsc.find((pair) => pair.pairAddress?.toLowerCase() === preferredPair.toLowerCase());
-  if (preferred) return preferred;
-  return bsc
+export function selectPair(pairs: DexPair[], address: string, preferredPair?: string | null) {
+  const preferred = preferredPair?.toLowerCase();
+  return pairs
+    .filter((pair) => pair.chainId === "bsc")
     .filter((pair) => {
       const base = pair.baseToken?.address?.toLowerCase();
       const quote = pair.quoteToken?.address?.toLowerCase();
       return (base === address && quote && QUOTE_TOKENS.has(quote)) || (quote === address && base && QUOTE_TOKENS.has(base));
     })
-    .sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0] ?? null;
+    .sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0) ||
+      Number(b.pairAddress?.toLowerCase() === preferred) - Number(a.pairAddress?.toLowerCase() === preferred))[0] ?? null;
 }
 
 function fromPair(candidate: Candidate, pair: DexPair | null, now: Date): EnrichedCandidate | null {
-  if (!pair && candidate.lane === "dex") return null;
   const address = candidate.address.toLowerCase();
   const tokenInfo = pair?.baseToken?.address?.toLowerCase() === address ? pair.baseToken : pair?.quoteToken;
   const pairCreated = pair?.pairCreatedAt ? new Date(pair.pairCreatedAt).toISOString() : null;
@@ -507,10 +519,10 @@ function fromPair(candidate: Candidate, pair: DexPair | null, now: Date): Enrich
     volume1hUsd: pair?.volume?.h1 ?? initial.volume1hUsd ?? null,
     volume6hUsd: pair?.volume?.h6 ?? initial.volume6hUsd ?? null,
     volume24hUsd: pair?.volume?.h24 ?? initial.volume24hUsd ?? null,
-    buys5m: pair?.txns?.m5?.buys ?? null,
-    sells5m: pair?.txns?.m5?.sells ?? null,
-    txBuys1h: pair?.txns?.h1?.buys ?? null,
-    txSells1h: pair?.txns?.h1?.sells ?? null,
+    buys5m: pair?.txns?.m5?.buys ?? initial.buys5m ?? null,
+    sells5m: pair?.txns?.m5?.sells ?? initial.sells5m ?? null,
+    txBuys1h: pair?.txns?.h1?.buys ?? initial.txBuys1h ?? null,
+    txSells1h: pair?.txns?.h1?.sells ?? initial.txSells1h ?? null,
     priceChange5mPct: pair?.priceChange?.m5 ?? initial.priceChange5mPct ?? null,
     priceChange1hPct: pair?.priceChange?.h1 ?? initial.priceChange1hPct ?? null,
     priceChange6hPct: pair?.priceChange?.h6 ?? initial.priceChange6hPct ?? null,
@@ -533,8 +545,7 @@ function fromPair(candidate: Candidate, pair: DexPair | null, now: Date): Enrich
     lane: pair ? "dex" : candidate.lane,
     fieldSources: {
       ...candidate.fieldSources,
-      market: "DEX Screener",
-      transactions: "DEX Screener（交易笔数，不等同独立钱包）",
+      ...(pair ? { market: "DEX Screener", transactions: "DEX Screener（交易笔数，不等同独立钱包）" } : {}),
       discovery: candidate.source,
     },
   };
@@ -567,32 +578,63 @@ async function enrichAnalytics(env: Env, rows: EnrichedCandidate[]) {
   }
 }
 
-export async function discoverAndEnrich(env: Env) {
-  const [sourceResults, logs] = await Promise.all([
-    Promise.allSettled([discoverDexAttention(), discoverDexSearch(), discoverFourApi(), discoverGeckoNewPools()]),
-    discoverLogs(env).catch(() => []),
-  ]);
-  const [attentionResult, dexSearchResult, fourResult, geckoResult] = sourceResults;
-  const attention = attentionResult.status === "fulfilled" ? attentionResult.value : [];
-  const dexSearch = dexSearchResult.status === "fulfilled" ? dexSearchResult.value : [];
-  const four = fourResult.status === "fulfilled" ? fourResult.value : [];
-  const gecko = geckoResult.status === "fulfilled" ? geckoResult.value : [];
-  if (!attention.length && !dexSearch.length && !four.length && !gecko.length && !logs.length) {
-    const messages = sourceResults.flatMap((result) =>
-      result.status === "rejected" ? [result.reason instanceof Error ? result.reason.message : String(result.reason)] : []);
-    if (messages.length) throw new Error(`候选发现源不可用：${messages.join("；")}`);
+interface SourceResult { rows: Candidate[]; health: SourceHealth }
+
+async function readSource(name: string, fn: () => Promise<Candidate[]>): Promise<SourceResult> {
+  const started = Date.now();
+  const lastAttemptAt = new Date(started).toISOString();
+  try {
+    const rows = await fn();
+    return { rows, health: { source: name, status: "ok", lastAttemptAt,
+      lastSuccessAt: new Date().toISOString(), candidateCount: rows.length, latencyMs: Date.now() - started } };
+  } catch (error) {
+    return { rows: [], health: { source: name, status: "error", lastAttemptAt, lastSuccessAt: null,
+      lastError: error instanceof Error ? error.message : "unknown error", candidateCount: 0, latencyMs: Date.now() - started } };
   }
-  const candidates = mergeCandidates([...logs, ...attention, ...four, ...gecko, ...dexSearch]).slice(0, 30);
+}
+
+export async function discoverCandidates(env: Env) {
+  const results = await Promise.all([
+    readSource("BSC On-chain Events", () => discoverLogs(env)),
+    readSource("DEX Screener Attention", discoverDexAttention),
+    readSource("DEX Screener Search", discoverDexSearch),
+    readSource("Four.meme API", discoverFourApi),
+    readSource("GeckoTerminal New Pools", discoverGeckoNewPools),
+  ]);
+  return { candidates: mergeCandidates(results.flatMap((result) => result.rows)), health: results.map((result) => result.health) };
+}
+
+export async function enrichCandidates(env: Env, candidates: Candidate[]) {
   const now = new Date();
   const enriched: EnrichedCandidate[] = [];
-  for (let index = 0; index < candidates.length; index += 10) {
-    const group = candidates.slice(index, index + 10);
-    const pairs = await Promise.all(group.map((candidate) => fetchPairs(candidate.address).catch(() => [])));
-    group.forEach((candidate, itemIndex) => {
-      const selected = selectPair(pairs[itemIndex], candidate.address, candidate.pairAddress);
+  let marketHealth: SourceHealth;
+  const started = Date.now();
+  try {
+    for (let index = 0; index < candidates.length; index += 30) {
+      const group = candidates.slice(index, index + 30);
+      const pairs = await fetchPairsBatch(group.map((candidate) => candidate.address));
+      group.forEach((candidate) => {
+      const selected = selectPair(pairs, candidate.address, candidate.pairAddress);
       const row = fromPair(candidate, selected, now);
       if (row && row.ageMinutes <= 72 * 60) enriched.push(row);
     });
+    }
+    marketHealth = { source: "DEX Screener Market", status: "ok", lastAttemptAt: new Date(started).toISOString(),
+      lastSuccessAt: new Date().toISOString(), candidateCount: enriched.length, latencyMs: Date.now() - started };
+  } catch (error) {
+    candidates.forEach((candidate) => {
+      const row = fromPair(candidate, null, now);
+      if (row && row.ageMinutes <= 72 * 60) enriched.push(row);
+    });
+    marketHealth = { source: "DEX Screener Market", status: "error", lastAttemptAt: new Date(started).toISOString(),
+      lastSuccessAt: null, lastError: error instanceof Error ? error.message : "unknown error",
+      candidateCount: 0, latencyMs: Date.now() - started };
   }
-  return enrichAnalytics(env, enriched);
+  return { rows: await enrichAnalytics(env, enriched), health: marketHealth };
+}
+
+export async function discoverAndEnrich(env: Env) {
+  const discovery = await discoverCandidates(env);
+  const enriched = await enrichCandidates(env, discovery.candidates);
+  return enriched.rows;
 }

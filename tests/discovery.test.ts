@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dexSearchPairsToCandidates, fourApiRowToCandidate, geckoNewPoolsToCandidates } from "../worker/discovery";
+import { dexSearchPairsToCandidates, fourApiRowToCandidate, geckoNewPoolsToCandidates, selectPair } from "../worker/discovery";
 
 describe("Four.meme discovery normalization", () => {
   it("keeps the token ticker separate from the quote symbol", () => {
@@ -103,5 +103,18 @@ describe("DEX Screener search fallback", () => {
     expect(candidates[0].lane).toBe("launchpad");
     expect(candidates[0].initialMetrics?.volume1hUsd).toBe(88000);
     expect(candidates[0].initialMetrics?.txBuys1h).toBe(140);
+  });
+
+  it("uses the deepest quote pool instead of a newly discovered dust pool", () => {
+    const token = "0x1234567890123456789012345678901234567890";
+    const quote = "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c";
+    const selected = selectPair([
+      { chainId: "bsc", pairAddress: "0xdust", baseToken: { address: token },
+        quoteToken: { address: quote }, liquidity: { usd: 10 } },
+      { chainId: "bsc", pairAddress: "0xdeep", baseToken: { address: token },
+        quoteToken: { address: quote }, liquidity: { usd: 1_100_000 } },
+    ], token, "0xdust");
+
+    expect(selected?.pairAddress).toBe("0xdeep");
   });
 });
