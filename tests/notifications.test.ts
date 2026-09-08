@@ -23,6 +23,13 @@ describe("alert detection", () => {
     expect(detectAlertEvents(token(), null).map((event) => event.type)).toContain("FIRST_ALPHA_WATCH");
   });
 
+  it("keeps a one-time event eligible for retry until delivery is recorded", () => {
+    const previous = token();
+    const types = detectAlertEvents(token(), previous).map((event) => event.type);
+    expect(types).toContain("FIRST_ALPHA_WATCH");
+    expect(types).toContain("SECURITY_VERIFIED");
+  });
+
   it("detects score, liquidity and safety deterioration independently", () => {
     const previous = token();
     previous.score.total = 60;

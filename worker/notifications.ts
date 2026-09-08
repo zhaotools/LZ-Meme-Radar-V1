@@ -9,24 +9,23 @@ function securityRank(status: RadarToken["score"]["securityStatus"]) {
 
 export function detectAlertEvents(current: RadarToken, previous: RadarToken | null): AlertEvent[] {
   const events: AlertEvent[] = [];
-  const priorLevel = previous?.score.level;
-  if (current.score.level === "ALPHA_WATCH" && priorLevel !== "ALPHA_WATCH" && priorLevel !== "ALPHA_SIGNAL") {
+  if (current.score.level === "ALPHA_WATCH") {
     events.push({ type: "FIRST_ALPHA_WATCH", label: "首次进入 Alpha Watch" });
   }
-  if (current.score.level === "ALPHA_SIGNAL" && priorLevel !== "ALPHA_SIGNAL") {
+  if (current.score.level === "ALPHA_SIGNAL") {
     events.push({ type: "FIRST_ALPHA_SIGNAL", label: "首次进入 Alpha Signal", critical: true });
   }
-  if (current.score.level === "BREAKOUT_WATCH" && priorLevel !== "BREAKOUT_WATCH" && priorLevel !== "BREAKOUT_SIGNAL") {
+  if (current.score.level === "BREAKOUT_WATCH") {
     events.push({ type: "FIRST_BREAKOUT_WATCH", label: "首次进入 Momentum Breakout Watch" });
   }
-  if (current.score.level === "BREAKOUT_SIGNAL" && priorLevel !== "BREAKOUT_SIGNAL") {
+  if (current.score.level === "BREAKOUT_SIGNAL") {
     events.push({ type: "FIRST_BREAKOUT_SIGNAL", label: "首次进入 Momentum Breakout Signal", critical: true });
   }
   const launchFlash = current.lane === "launchpad" && ((current.metrics.curveProgressPct ?? 0) >= 0.08 ||
     (current.metrics.volume1hUsd ?? 0) >= 5_000 || (current.metrics.holders ?? 0) >= 20);
   const poolFlash = current.lane === "dex" && (current.metrics.liquidityUsd ?? 0) >= 20_000 &&
     ((current.metrics.volume5mUsd ?? 0) >= 5_000 || (current.metrics.volume1hUsd ?? 0) >= 30_000);
-  if (!previous && (launchFlash || poolFlash)) {
+  if ((!previous || current.ageMinutes <= 60) && (launchFlash || poolFlash)) {
     events.push({ type: current.lane === "launchpad" ? "FLASH_TOKEN_CREATED" : "FLASH_POOL_DISCOVERED",
       label: current.lane === "launchpad" ? "Flash：发现新 Token" : "Flash：发现新交易池" });
   } else if (previous && poolFlash && (!previous.pairAddress || (previous.metrics.liquidityUsd ?? 0) < 20_000)) {
@@ -34,8 +33,7 @@ export function detectAlertEvents(current: RadarToken, previous: RadarToken | nu
   }
   const thresholds = [5_000_000, 10_000_000, 20_000_000, 50_000_000];
   const currentCap = current.metrics.marketCapUsd ?? 0;
-  const previousCap = previous?.metrics.marketCapUsd ?? 0;
-  const crossed = thresholds.filter((threshold) => currentCap >= threshold && previousCap < threshold).at(-1);
+  const crossed = thresholds.filter((threshold) => currentCap >= threshold).at(-1);
   if (crossed) {
     const label = crossed >= 1_000_000 ? `${crossed / 1_000_000}M` : String(crossed);
     events.push({ type: `MC_BREAKOUT_${label}`, label: `市值高速突破 $${label}`, critical: crossed >= 20_000_000 });
@@ -45,10 +43,10 @@ export function detectAlertEvents(current: RadarToken, previous: RadarToken | nu
   if (volumeAcceleration >= 1.8 && (current.metrics.volume5mUsd ?? 0) >= 100_000) {
     events.push({ type: "VOLUME_ACCELERATION", label: `成交量加速至前值 ${volumeAcceleration.toFixed(1)} 倍` });
   }
-  if (previous?.score.securityStatus === "UNKNOWN" && current.score.securityStatus === "PASS") {
+  if (current.score.securityStatus === "PASS" && current.score.eligible) {
     events.push({ type: "SECURITY_VERIFIED", label: "GoPlus 安全验证通过" });
   }
-  if (current.score.alphaInflection && !previous?.score.alphaInflection) {
+  if (current.score.alphaInflection) {
     events.push({ type: "ALPHA_INFLECTION", label: "出现 Alpha 拐点", critical: true });
   }
   if (previous && current.score.total - previous.score.total >= 10) {
@@ -166,7 +164,7 @@ export async function processAlerts(env: Env, token: RadarToken, previous: Radar
       recorded += 1;
       continue;
     }
-    if (await rateLimited(env)) {
+    if (!event.critical && await rateLimited(env)) {
       await record(env, token, event, message, false, "rate limited");
       recorded += 1;
       continue;
