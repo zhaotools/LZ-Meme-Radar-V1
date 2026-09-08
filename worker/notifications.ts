@@ -16,7 +16,8 @@ export function detectAlertEvents(current: RadarToken, previous: RadarToken | nu
     events.push({ type: "FIRST_ALPHA_SIGNAL", label: "首次进入 Alpha Signal", critical: true });
   }
   if (current.score.level === "BREAKOUT_WATCH") {
-    events.push({ type: "FIRST_BREAKOUT_WATCH", label: "首次进入 Momentum Breakout Watch" });
+    events.push({ type: "FIRST_BREAKOUT_WATCH", label: "首次进入 Momentum Breakout Watch",
+      critical: (current.metrics.marketCapUsd ?? 0) >= 20_000_000 });
   }
   if (current.score.level === "BREAKOUT_SIGNAL") {
     events.push({ type: "FIRST_BREAKOUT_SIGNAL", label: "首次进入 Momentum Breakout Signal", critical: true });

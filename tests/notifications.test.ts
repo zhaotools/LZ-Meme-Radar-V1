@@ -30,6 +30,16 @@ describe("alert detection", () => {
     expect(types).toContain("SECURITY_VERIFIED");
   });
 
+  it("treats a large-cap breakout watch as priority traffic", () => {
+    const current = token();
+    current.score.level = "BREAKOUT_WATCH";
+    current.score.track = "MOMENTUM_BREAKOUT";
+    current.score.breakout = true;
+    current.metrics.marketCapUsd = 25_000_000;
+    const event = detectAlertEvents(current, null).find((item) => item.type === "FIRST_BREAKOUT_WATCH");
+    expect(event?.critical).toBe(true);
+  });
+
   it("detects score, liquidity and safety deterioration independently", () => {
     const previous = token();
     previous.score.total = 60;
