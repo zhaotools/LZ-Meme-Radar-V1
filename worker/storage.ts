@@ -224,7 +224,8 @@ export async function listSourceHealth(env: Env): Promise<SourceHealth[]> {
 
 export async function latestScan(env: Env): Promise<ScanRunSummary | null> {
   const row = await env.DB.prepare(`SELECT id, started_at, finished_at, status, discovered_count,
-    queued_count, tracked_count, scored_count, alert_count, error FROM scan_runs ORDER BY started_at DESC LIMIT 1`)
+    queued_count, tracked_count, scored_count, alert_count, error FROM scan_runs
+    WHERE status != 'running' ORDER BY started_at DESC LIMIT 1`)
     .first<{ id: string; started_at: string; finished_at: string | null; status: ScanRunSummary["status"];
       discovered_count: number; queued_count: number; tracked_count: number; scored_count: number;
       alert_count: number; error: string | null }>();

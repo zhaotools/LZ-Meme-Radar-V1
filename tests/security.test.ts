@@ -17,4 +17,14 @@ describe("GoPlus liquidity normalization", () => {
     });
     expect(facts.lpLockedPct).toBe(0.8);
   });
+
+  it("clamps malformed holder and LP percentages to 100%", () => {
+    const facts = normalizeGoPlus({
+      holders: [{ address: "0x2222222222222222222222222222222222222222", percent: "1e50", is_locked: 0 }],
+      dex: [{ liquidity_type: "UniV2", name: "PancakeV2" }],
+      lp_holders: [{ address: "0x3333333333333333333333333333333333333333", percent: "2", is_locked: 1 }],
+    });
+    expect(facts.effectiveTop10Pct).toBe(1);
+    expect(facts.lpLockedPct).toBe(1);
+  });
 });

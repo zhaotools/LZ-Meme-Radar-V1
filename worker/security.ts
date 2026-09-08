@@ -27,7 +27,7 @@ function top10(raw: GoPlusToken, pairAddress?: string | null) {
     return address && !burnAddresses.has(address) && address !== pair && bool(holder.is_locked) !== true;
   }).slice(0, 10);
   if (!effective.length) return null;
-  return effective.reduce((sum, holder) => sum + (number(holder.percent) ?? 0), 0);
+  return Math.min(1, Math.max(0, effective.reduce((sum, holder) => sum + (number(holder.percent) ?? 0), 0)));
 }
 
 export function normalizeGoPlus(raw: GoPlusToken | undefined, pairAddress?: string | null): SecurityFacts {
@@ -52,9 +52,10 @@ export function normalizeGoPlus(raw: GoPlusToken | undefined, pairAddress?: stri
     sellTax: number(raw.sell_tax),
     effectiveTop10Pct: top10(raw, pairAddress),
     creatorPct: number(raw.creator_percent),
-    lpLockedPct: concentratedLiquidity ? null : number(raw.lp_holders ? (raw.lp_holders as Array<Record<string, unknown>>)
-      .filter((holder) => bool(holder.is_locked) === true)
-      .reduce((sum, holder) => sum + (number(holder.percent) ?? 0), 0) : null),
+    lpLockedPct: concentratedLiquidity ? null : number(raw.lp_holders ? Math.min(1,
+      Math.max(0, (raw.lp_holders as Array<Record<string, unknown>>)
+        .filter((holder) => bool(holder.is_locked) === true)
+        .reduce((sum, holder) => sum + (number(holder.percent) ?? 0), 0))) : null),
     openSource: bool(raw.is_open_source),
   };
 }
