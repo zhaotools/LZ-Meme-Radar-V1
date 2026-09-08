@@ -4,7 +4,7 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   "observability": { "enabled": true },
-  "triggers": { "crons": ["* * * * *"] },
+  "triggers": { "crons": [] },
   "vars": {
     "ALERT_MODE": "live",
     "ALERT_TIMEZONE_OFFSET": "8",
