@@ -52,6 +52,21 @@ export async function scanMarket(env: Env): Promise<ScanResult> {
     const trackingByAddress = new Map(tracked.map((item) => [item.candidate.address.toLowerCase(), item]));
     const pairByToken = new Map(enriched.rows.map((row) => [row.address.toLowerCase(), row.pairAddress ?? null]));
     const securityBatch = await fetchSecurity(env, enriched.rows.map((row) => row.address), pairByToken);
+    const highValueMissing = enriched.rows.filter((row) => (row.metrics.marketCapUsd ?? 0) >= 5_000_000 &&
+      !hasSecurityFacts(securityBatch.results.get(row.address.toLowerCase())?.facts ?? {})).slice(0, 5);
+    const targetedSecurity = await Promise.all(highValueMissing.map((row) =>
+      fetchSecurity(env, [row.address], pairByToken)));
+    for (const retry of targetedSecurity) {
+      for (const [address, value] of retry.results) {
+        if (hasSecurityFacts(value.facts)) securityBatch.results.set(address, value);
+      }
+    }
+    const securityCovered = [...securityBatch.results.values()].filter((item) => hasSecurityFacts(item.facts)).length;
+    securityBatch.health.candidateCount = securityCovered;
+    if (targetedSecurity.some((item) => item.health.status === "ok")) {
+      securityBatch.health.lastSuccessAt = new Date().toISOString();
+      securityBatch.health.status = securityCovered === enriched.rows.length ? "ok" : "degraded";
+    }
     result.sourceHealth.push(securityBatch.health);
     await recordSourceHealth(env, securityBatch.health);
     const previousByAddress = await getLatestTokens(env, enriched.rows.map((row) => row.address));
