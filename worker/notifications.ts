@@ -140,14 +140,17 @@ async function record(env: Env, token: RadarToken, event: AlertEvent, message: s
 export async function processAlerts(env: Env, token: RadarToken, previous: RadarToken | null) {
   if ((env.ALERT_MODE ?? "shadow") === "off") return 0;
   const detected = detectAlertEvents(token, previous);
-  const hasMarketCapBreakout = detected.some((event) => event.type.startsWith("MC_BREAKOUT_"));
-  const hasLevelTransition = detected.some((event) => event.type.startsWith("FIRST_"));
-  const events = detected.filter((event) =>
+  const pending: AlertEvent[] = [];
+  for (const event of detected) {
+    if (!await alreadySent(env, token.address.toLowerCase(), event.type)) pending.push(event);
+  }
+  const hasMarketCapBreakout = pending.some((event) => event.type.startsWith("MC_BREAKOUT_"));
+  const hasLevelTransition = pending.some((event) => event.type.startsWith("FIRST_"));
+  const events = pending.filter((event) =>
     !(hasMarketCapBreakout && (event.type.startsWith("FLASH_") || event.type.startsWith("FIRST_BREAKOUT_"))) &&
     !(hasLevelTransition && !hasMarketCapBreakout && event.type.startsWith("FLASH_")));
   let recorded = 0;
   for (const event of events) {
-    if (await alreadySent(env, token.address.toLowerCase(), event.type)) continue;
     const message = alertMessage(token, event);
     if ((env.ALERT_MODE ?? "shadow") !== "live") {
       await record(env, token, event, message, false, "shadow mode");
