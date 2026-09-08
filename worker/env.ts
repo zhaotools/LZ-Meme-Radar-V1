@@ -1,6 +1,7 @@
 export interface Env {
   DB: D1Database;
   BSC_RPC_URL?: string;
+  BSC_RPC_FALLBACK_URL?: string;
   GOPLUS_TOKEN?: string;
   ADMIN_TOKEN?: string;
   TELEGRAM_BOT_TOKEN?: string;

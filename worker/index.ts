@@ -1,7 +1,7 @@
 import type { Env } from "./env";
 import { scanMarket } from "./scanner";
 import { sendTelegramTest } from "./notifications";
-import { getLatestToken, listRadar, tokenHistory } from "./storage";
+import { getLatestToken, latestScan, listRadar, listSourceHealth, tokenHistory } from "./storage";
 
 function cors(env: Env, request: Request) {
   const origin = request.headers.get("origin") ?? "";
@@ -30,19 +30,21 @@ function authorized(request: Request, env: Env) {
 }
 
 async function status(env: Env) {
-  const latest = await env.DB.prepare(`SELECT id, started_at, finished_at, status, discovered_count,
-    scored_count, alert_count, error FROM scan_runs ORDER BY started_at DESC LIMIT 1`).first();
+  const [latest, sources] = await Promise.all([latestScan(env), listSourceHealth(env)]);
+  const stale = !latest?.finishedAt || Date.now() - Date.parse(latest.finishedAt) > 5 * 60_000;
   return {
-    ok: true,
+    ok: !stale && latest?.status !== "error",
     service: "LZ-Meme Radar V1 API",
     now: new Date().toISOString(),
     configuration: {
-      rpc: Boolean(env.BSC_RPC_URL),
+      rpc: true,
+      rpcMode: env.BSC_RPC_URL ? "configured-with-public-fallbacks" : "public-fallbacks",
       analytics: Boolean(env.ANALYTICS_URL),
       telegram: Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID),
       alertMode: env.ALERT_MODE ?? "shadow",
     },
-    latestScan: latest ?? null,
+    latestScan: latest,
+    sourceHealth: sources,
   };
 }
 

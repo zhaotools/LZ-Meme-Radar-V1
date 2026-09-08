@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { RadarResponse, RadarToken, SecurityFacts, SignalLevel } from "./shared/types";
+import type { RadarResponse, RadarToken, SecurityFacts, SignalLevel, SourceHealth } from "./shared/types";
 
 const API_BASE = (import.meta.env.VITE_RADAR_API_URL ?? "").replace(/\/$/, "");
 const LEVEL_LABEL: Record<SignalLevel, string> = {
@@ -7,6 +7,8 @@ const LEVEL_LABEL: Record<SignalLevel, string> = {
   OBSERVE: "观察",
   ALPHA_WATCH: "Alpha Watch",
   ALPHA_SIGNAL: "Alpha Signal",
+  BREAKOUT_WATCH: "Breakout Watch",
+  BREAKOUT_SIGNAL: "Breakout Signal",
   OVERHEATED: "过热",
   RISK_FAIL: "风险淘汰",
 };
@@ -106,7 +108,7 @@ function ScoreRing({ score }: { score: number }) {
 
 interface Filters { query: string; level: string; lane: string; security: string; age: string; watchlist: boolean }
 interface HistoryPoint { observedAt: string; score: number; level: SignalLevel }
-interface ApiStatus { configuration?: { telegram?: boolean; alertMode?: string } }
+interface ApiStatus { configuration?: { telegram?: boolean; alertMode?: string }; sourceHealth?: SourceHealth[] }
 
 function TokenTable({ tokens, onSelect, watched, toggleWatch }: {
   tokens: RadarToken[]; onSelect: (token: RadarToken) => void; watched: Set<string>; toggleWatch: (address: string) => void;
@@ -123,9 +125,10 @@ function TokenTable({ tokens, onSelect, watched, toggleWatch }: {
         <td><button className={`star ${watched.has(token.address) ? "active" : ""}`} aria-label="切换自选"
           onClick={(event) => { event.stopPropagation(); toggleWatch(token.address); }}>{watched.has(token.address) ? "★" : "☆"}</button></td>
         <td><div className="token-cell"><TokenMark token={token} /><div><strong>{token.symbol}</strong><span>{token.name}</span>
-          <small>{token.lane === "launchpad" ? "Launchpad" : "DEX"} · {age(token.ageMinutes)} · {token.source}</small>
+          <small>{token.score.track ?? (token.lane === "launchpad" ? "LAUNCHPAD" : "EARLY_ALPHA")} · {age(token.ageMinutes)} · {token.source}</small>
           <div className="contract-line"><code>{shortAddress(token.address)}</code><CopyAddressButton address={token.address} /></div></div></div></td>
-        <td><StatusBadge token={token} />{token.score.alphaInflection && <span className="inflection">拐点</span>}</td>
+        <td><StatusBadge token={token} />{token.score.alphaInflection && <span className="inflection">拐点</span>}
+          {token.score.overheated && <span className="risk-flag">抛物线</span>}</td>
         <td><b className="score-number">{token.score.total}</b><small className="coverage">覆盖 {token.score.coverage}%</small></td>
         <td><span className={`security security-${token.score.securityStatus.toLowerCase()}`}>{token.score.securityStatus}</span></td>
         <td>{token.score.components.funds}<small>/30</small></td><td>{token.score.components.chips}<small>/25</small></td>
@@ -189,7 +192,9 @@ function DetailDrawer({ token, onClose, watched, toggleWatch }: {
       <div className="drawer-scroll">
         <section className="signal-overview"><ScoreRing score={token.score.total} /><div><StatusBadge token={token} />
           {token.score.alphaInflection && <span className="inflection">Alpha 拐点</span>}<p>数据覆盖 {token.score.coverage}% · 安全 {SECURITY_LABEL[token.score.securityStatus]}</p>
-          <p>发现于 {new Date(token.discoveredAt).toLocaleString("zh-CN")} · 更新于 {new Date(token.observedAt).toLocaleTimeString("zh-CN")}</p></div></section>
+          <p>{token.score.track ?? "EARLY_ALPHA"}{token.score.overheated ? " · 抛物线风险" : ""}</p>
+          <p>Radar 首见 {new Date(token.firstSeenAt ?? token.discoveredAt).toLocaleString("zh-CN")} · 更新 {new Date(token.observedAt).toLocaleTimeString("zh-CN")}</p>
+          {token.tokenCreatedAt && <p>Token 创建 {new Date(token.tokenCreatedAt).toLocaleString("zh-CN")} · 发现延迟 {token.discoveryLatencySeconds == null ? "--" : age(token.discoveryLatencySeconds / 60)}</p>}</div></section>
 
         <section><h3>评分瀑布</h3><div className="score-bars">{COMPONENTS.map(([key, label, max]) => <div key={key}>
           <div><span>{label}</span><b>{token.score.components[key]} / {max}</b></div><i><em style={{ width: `${token.score.components[key] / max * 100}%` }} /></i>
@@ -263,10 +268,12 @@ function App() {
       (filters.security === "ALL" || token.score.securityStatus === filters.security) && token.ageMinutes <= Number(filters.age) * 60 &&
       (!filters.watchlist || watched.has(token.address));
   }).sort((a, b) => b.score.total - a.score.total), [data, filters, watched]);
+  const scanStatus = data?.sourceMode === "demo" ? "demo" : data?.scanStatus ?? "error";
+  const scanLabel = scanStatus === "ok" ? "扫描正常" : scanStatus === "partial" ? "扫描降级" : scanStatus === "demo" ? "演示模式" : "扫描中断";
 
   return <div className="app-shell">
     <header className="topbar"><div className="brand"><span className="radar-logo"><i /></span><div><h1>LZ-Meme Radar <em>V1</em></h1><p>BSC Meme Alpha Scanner</p></div></div>
-      <div className="top-actions"><span className={`live-state ${data?.sourceMode === "live" ? "is-live" : ""}`}><i />{data?.sourceMode === "live" ? "实时扫描" : "演示模式"}</span>
+      <div className="top-actions"><span className={`live-state status-${scanStatus}`}><i />{scanLabel}</span>
         {data?.sourceMode === "live" && <span className="notification-state">{apiStatus?.configuration?.telegram ? (apiStatus.configuration.alertMode === "live" ? "Telegram 已启用" : "Telegram 影子模式") : "通知待配置"}</span>}
         <button onClick={() => void load()} disabled={loading} aria-label="刷新">{loading ? "扫描中…" : "刷新"}</button>
         <button className="theme-button" onClick={() => setTheme(theme === "light" ? "dark" : "light")} aria-label="切换主题">{theme === "light" ? "◐" : "◑"}</button></div></header>
@@ -274,23 +281,31 @@ function App() {
     <main>
       {data?.sourceMode === "demo" && <div className="notice"><b>当前为演示数据</b><span>前端尚未连接生产 Worker。页面、评分与通知逻辑可测试，但这里不代表实时荐币。</span></div>}
       {error && <div className="notice error"><b>数据连接失败</b><span>{error}</span><button onClick={() => void load()}>重试</button></div>}
+      {data?.sourceMode === "live" && data.notices?.map((notice) => <div className="notice error" key={notice}><b>扫描状态提醒</b><span>{notice}</span></div>)}
+
+      {data?.sourceMode === "live" && (data.sourceHealth?.length ?? 0) > 0 && <section className="source-health" aria-label="数据源状态">
+        {data?.sourceHealth?.map((source) => <div key={source.source} className={`source-${source.status}`}>
+          <i /><span>{source.source}</span><b>{source.status === "ok" ? "正常" : source.status === "degraded" ? "降级" : source.status === "disabled" ? "未启用" : "失败"}</b>
+          <small>{source.candidateCount} 个 · {source.latencyMs}ms</small>
+        </div>)}
+      </section>}
 
       <section className="summary-grid">
-        {[["24H 新发现", data?.summary.discovered24h ?? 0], ["安全通过", data?.summary.riskPass ?? 0], ["Alpha Watch", data?.summary.alphaWatch ?? 0], ["Alpha Signal", data?.summary.alphaSignal ?? 0], ["已发送提醒", data?.summary.alertsSent ?? 0]].map(([label, value], index) =>
-          <div className={`summary-card accent-${index}`} key={String(label)}><span>{label}</span><b>{value}</b><small>{index === 0 ? "10m–72h 扫描窗口" : index === 4 ? "近 24 小时" : "当前结果集"}</small></div>)}
+        {[["24H 新发现", data?.summary.discovered24h ?? 0], ["安全通过", data?.summary.riskPass ?? 0], ["Alpha Watch", data?.summary.alphaWatch ?? 0], ["Alpha Signal", data?.summary.alphaSignal ?? 0], ["Breakout", (data?.summary.breakoutWatch ?? 0) + (data?.summary.breakoutSignal ?? 0)], ["已发送提醒", data?.summary.alertsSent ?? 0]].map(([label, value], index) =>
+          <div className={`summary-card accent-${index}`} key={String(label)}><span>{label}</span><b>{value}</b><small>{index === 0 ? "真实首次发现时间" : index === 5 ? "近 24 小时" : "当前结果集"}</small></div>)}
       </section>
 
       <section className="radar-panel">
         <div className="panel-head"><div><h2>Alpha 扫描结果</h2><p>优先看加速度与结构，不按涨幅排名</p></div><div className="scan-meta">更新 {data ? new Date(data.generatedAt).toLocaleTimeString("zh-CN") : "--"}<span>每 60 秒刷新</span></div></div>
         <div className="filters">
           <label className="search"><span>⌕</span><input value={filters.query} onChange={(event) => setFilters({ ...filters, query: event.target.value })} placeholder="搜索名称、代码或合约" /></label>
-          <select value={filters.level} onChange={(event) => setFilters({ ...filters, level: event.target.value })}><option value="ALL">全部信号</option><option value="ALPHA_SIGNAL">Alpha Signal</option><option value="ALPHA_WATCH">Alpha Watch</option><option value="OBSERVE">观察</option><option value="OVERHEATED">过热</option><option value="RISK_FAIL">风险淘汰</option></select>
+          <select value={filters.level} onChange={(event) => setFilters({ ...filters, level: event.target.value })}><option value="ALL">全部信号</option><option value="BREAKOUT_SIGNAL">Breakout Signal</option><option value="BREAKOUT_WATCH">Breakout Watch</option><option value="ALPHA_SIGNAL">Alpha Signal</option><option value="ALPHA_WATCH">Alpha Watch</option><option value="OBSERVE">观察</option><option value="OVERHEATED">旧版过热</option><option value="RISK_FAIL">风险淘汰</option></select>
           <select value={filters.lane} onChange={(event) => setFilters({ ...filters, lane: event.target.value })}><option value="ALL">全部通道</option><option value="launchpad">Launchpad</option><option value="dex">DEX 池</option></select>
           <select value={filters.security} onChange={(event) => setFilters({ ...filters, security: event.target.value })}><option value="ALL">全部安全状态</option><option value="PASS">安全通过</option><option value="UNKNOWN">安全未知</option><option value="FAIL">安全失败</option></select>
           <select value={filters.age} onChange={(event) => setFilters({ ...filters, age: event.target.value })}><option value="24">币龄 ≤ 24H</option><option value="72">币龄 ≤ 72H</option></select>
           <button className={filters.watchlist ? "filter-active" : ""} onClick={() => setFilters({ ...filters, watchlist: !filters.watchlist })}>★ 自选</button>
         </div>
-        <div className="result-caption"><span>显示 {tokens.length} / {data?.tokens.length ?? 0} 个标的</span><span>UNKNOWN 永不进入 Alpha Signal</span></div>
+        <div className="result-caption"><span>显示 {tokens.length} / {data?.tokens.length ?? 0} 个标的</span><span>安全 UNKNOWN 仅允许 Watch/Flash，不进入正式 Signal</span></div>
         {loading && !data ? <div className="empty-state"><span className="loader" /><p>正在读取雷达数据…</p></div> : tokens.length ? <>
           <TokenTable tokens={tokens} onSelect={setSelected} watched={watched} toggleWatch={toggleWatch} />
           <MobileList tokens={tokens} onSelect={setSelected} watched={watched} toggleWatch={toggleWatch} />

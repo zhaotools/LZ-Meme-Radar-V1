@@ -4,9 +4,9 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   "observability": { "enabled": true },
-  "triggers": { "crons": ["*/2 * * * *"] },
+  "triggers": { "crons": ["* * * * *"] },
   "vars": {
-    "ALERT_MODE": "shadow",
+    "ALERT_MODE": "live",
     "ALERT_TIMEZONE_OFFSET": "8",
     "QUIET_HOURS": "23:00-08:00",
     "ALLOWED_ORIGIN": "https://zhaotools.github.io,http://localhost:5173",

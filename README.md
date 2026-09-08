@@ -4,15 +4,18 @@
 
 ## 当前能力
 
-- 双通道发现：Four.meme `NEW / HOT / PROGRESS` 列表、TokenManager2/OpenFour 创建事件与 PancakeSwap V2/V3 新池日志。
+- 链上优先发现：TokenManager2/OpenFour 创建事件与 PancakeSwap V2/V3 新池日志；Four.meme、DEX Screener 与 GeckoTerminal 作为补充源。
+- 持久候选队列与活跃追踪池：新币不再因临时榜单变化或单轮 30 个上限而丢失；前 30 分钟每分钟跟踪，之后按币龄动态降频。
 - DEX Screener 最新资料、Boost、搜索候选和交易/流动性数据补全。
 - GeckoTerminal BSC New Pools 作为 Four.meme 或 DEX 搜索受限时的容灾新池源。
 - GoPlus Token Security 风险检查，结果分为 `PASS / UNKNOWN / FAIL`。
-- 100 分 Alpha Score：资金 30、筹码 25、热度 20、交易结构 15、安全质量 10。
+- 双赛道 100 分评分：`EARLY_ALPHA` 寻找趋势前加速，`MOMENTUM_BREAKOUT` 捕捉快速跨越大市值的市场突破。
 - 严格准入：高危项一票否决；安全未知永远不能进入 Alpha Signal；Signal 需要至少两轮连续扫描和 80% 数据覆盖。
 - Alpha Inflection：币龄、市值、资金/筹码/热度加速与非抛物线价格的联合状态。
 - Cloudflare D1 保存最新状态、7 日快照、扫描运行和通知审计。
-- Telegram 影子/实时通知：首次 Watch、首次 Signal、Alpha 拐点、评分跃升、LP 骤降、大户/Dev 卖出和安全降级。
+- Telegram 实时通知：Flash 发现、首次 Watch/Signal、市值突破 5M/10M/20M/50M、成交量加速、安全验证、LP/大户/Dev 风险和数据源降级。
+- 数据源健康面板：显示各来源最近成功、失败、候选数量与延迟；超过 5 分钟没有成功扫描会明确标红。
+- 时间语义分离：Token 创建、交易池创建、Radar 首次发现、最近评分分别保存，并展示真实发现延迟。
 - GitHub Pages 只读前端；密钥、扫描和通知全部留在 Cloudflare Worker。
 - 桌面高密度表格、手机紧凑信号列表、本地自选、详情抽屉、浅色/深色主题。
 
@@ -23,8 +26,10 @@
 | 噪音 | 0–49 |
 | 观察 | 50–64，或未满足通道准入 |
 | Alpha Watch | 65–79；或高分但尚未满足 Signal 确认条件 |
-| Alpha Signal | 80–100，安全 PASS、覆盖率 ≥80%、连续扫描 ≥2 且不过热 |
-| 过热 | 5m ≥80% 或 15m/1h ≥180% |
+| Alpha Signal | 80–100，安全 PASS、覆盖率 ≥80%、连续扫描 ≥2；抛物线状态单独标记风险 |
+| Breakout Watch | 币龄 ≤24H、市值 ≥$5M、LP ≥$100K、成交放大且买盘占优；安全可暂为 UNKNOWN |
+| Breakout Signal | Breakout Watch 基础上，安全 PASS、覆盖率 ≥70%、连续扫描 ≥2、总分 ≥70 |
+| 抛物线风险 | 5m ≥80% 或 15m/1h ≥180%；作为风险标签，不再从榜单淘汰 |
 | 风险淘汰 | Honeypot、买卖限制、恶意合约/创建者、Owner 改余额、极端税率、危险权限、极端集中度或 LP 风险 |
 
 缺失数据不填成 0。可用字段会在各维度内部归一化，同时降低总覆盖率；因此“分数高但覆盖低”的币只能观察，不能成为正式信号。
@@ -40,7 +45,7 @@ GoPlus ─────────┤                         └─> Telegram B
 GitHub Pages React 前端 ───── 只读 API ─────┘
 ```
 
-BNB Chain 公共主网 RPC 不支持频繁 `eth_getLogs`，生产扫描必须使用支持日志查询的第三方 BSC RPC。DEX Screener 用于候选补充和市场数据，不被当作完整的 BSC 新池索引。Four.meme 的当前 TokenManager2、OpenFour Registry 和 Pancake V2/V3 Factory 已按公开集成资料内置；升级或新协议可继续通过环境变量添加验证后的事件适配器。
+Worker 内置三个支持日志查询的公共第三方 RPC 作为容灾，同时优先使用秘密变量中的专用 RPC。公共 RPC 可能限流，生产环境仍建议配置 `BSC_RPC_URL` 和 `BSC_RPC_FALLBACK_URL`。DEX Screener 用于行情补全，不被当作完整的新池索引。
 
 ## 本地前端
 
@@ -81,7 +86,7 @@ VITE_RADAR_API_URL=http://localhost:8787 pnpm dev
    pnpm run db:migrate:remote
    ```
 
-3. 复制 `.dev.vars.example` 为 `.dev.vars`，至少配置支持 `eth_getLogs` 的 `BSC_RPC_URL` 与 `ADMIN_TOKEN`。`.dev.vars` 已被 Git 忽略。
+3. 本地需要管理接口时，在被 Git 忽略的 `.dev.vars` 中配置 `ADMIN_TOKEN`；生产环境建议另外配置支持 `eth_getLogs` 的 `BSC_RPC_URL` 与 `BSC_RPC_FALLBACK_URL`。
 
 4. 本地运行：
 
@@ -93,13 +98,14 @@ VITE_RADAR_API_URL=http://localhost:8787 pnpm dev
 
    ```bash
    pnpm wrangler secret put BSC_RPC_URL
+   pnpm wrangler secret put BSC_RPC_FALLBACK_URL
    pnpm wrangler secret put ADMIN_TOKEN
    pnpm wrangler secret put TELEGRAM_BOT_TOKEN
    pnpm wrangler secret put TELEGRAM_CHAT_ID
    pnpm run deploy:worker
    ```
 
-Worker 默认每 2 分钟扫描。手动扫描必须带管理令牌：
+Worker 默认每分钟扫描。手动扫描必须带管理令牌：
 
 ```bash
 curl -X POST https://YOUR_WORKER/api/v1/scan -H "Authorization: Bearer YOUR_ADMIN_TOKEN"
@@ -154,10 +160,7 @@ DEX Screener 的 `txns.buys/sells` 是交易笔数，不是独立钱包。本项
 
 ## Telegram 上线流程
 
-1. 先保持 `ALERT_MODE=shadow` 运行 72 小时。所有应触发通知的事件会写入 `alerts`，但不会发送。
-2. 检查误报、重复率、覆盖率和扫描延迟。
-3. 配好 Bot Token 与 Chat ID，再将 Worker 变量改为 `ALERT_MODE=live`。
-4. 普通通知遵守安静时段；安全降级、LP 骤降等高危通知仍可发送。每币种同类通知冷却 30 分钟，首次等级通知只发一次，全局上限为 10 分钟 5 条。
+当前生产配置使用 `ALERT_MODE=live`。普通通知遵守安静时段；20M/50M 突破、安全降级、LP 骤降和数据源中断等高危通知仍可发送。首次等级、Flash 和每个市值档位只成功发送一次；发送失败不会被误记为永久已通知。
 
 ## API
 
